@@ -31,7 +31,7 @@ from pace.util.mpi import MPI
 # ncnst = Atm(mytile)%ncnst
 # pnats = Atm(mytile)%flagstruct%pnats
 # here we hard-coded it because 8 is the only supported value, refactor this later!
-NQ = 8  # state.nq_tot - spec.namelist.dnats
+NQ = 9  # state.nq_tot - spec.namelist.dnats
 
 
 def pt_to_potential_density_pt(
@@ -179,6 +179,8 @@ class DynamicalCore:
             method_to_orchestrate="_checkpoint_tracer_advection_out",
             dace_compiletime_args=["state"],
         )
+        if timestep == timedelta(seconds=0):
+            raise RuntimeError("Bad dynamical core configuration: bdt is 0")
         # nested and stretched_grid are options in the Fortran code which we
         # have not implemented, so they are hard-coded here.
         self.call_checkpointer = checkpointer is not None
@@ -557,6 +559,7 @@ class DynamicalCore:
                         state.w,
                         self._cappa,
                         state.q_con,
+                        # Since NQ=9, we shouldn't need to pass qcld explicitly
                         state.qcld,
                         state.pkz,
                         state.pk,
