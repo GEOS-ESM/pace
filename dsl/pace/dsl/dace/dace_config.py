@@ -1,5 +1,5 @@
 import enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import dace.config
 from dace.codegen.compiled_sdfg import CompiledSDFG
@@ -7,13 +7,100 @@ from dace.frontend.python.parser import DaceProgram
 
 from pace.dsl.gt4py_utils import is_gpu_backend
 from pace.util._optional_imports import cupy as cp
-from pace.util.communicator import CubedSphereCommunicator
+from pace.util.communicator import CubedSphereCommunicator, CubedSpherePartitioner
 
 
 # This can be turned on to revert compilation for orchestration
 # in a rank-compile-itself more, instead of the distributed top-tile
 # mechanism.
 DEACTIVATE_DISTRIBUTED_DACE_COMPILE = False
+
+
+def _is_corner(rank: int, partitioner: CubedSpherePartitioner) -> bool:
+    if partitioner.tile.on_tile_bottom(rank):
+        if partitioner.tile.on_tile_left(rank):
+            return True
+        if partitioner.tile.on_tile_right(rank):
+            return True
+    if partitioner.tile.on_tile_top(rank):
+        if partitioner.tile.on_tile_left(rank):
+            return True
+        if partitioner.tile.on_tile_right(rank):
+            return True
+    return False
+
+
+def _smallest_rank_bottom(rank: int, layout: Tuple[int, int]):
+    return rank == 1
+
+
+def _smallest_rank_top(rank: int, layout: Tuple[int, int]):
+    return rank == (layout[0] * (layout[1] - 1) + 1)
+
+
+def _smallest_rank_left(rank: int, layout: Tuple[int, int]):
+    return rank == layout[0]
+
+
+def _smallest_rank_right(rank: int, layout: Tuple[int, int]):
+    return rank == (2 * layout[0] - 1)
+
+
+def _smallest_rank_middle(rank: int, layout: Tuple[int, int]):
+    return rank == (layout[0] + 1)
+
+
+def _determine_compiling_ranks(
+    config: "DaceConfig",
+    partitioner: CubedSpherePartitioner,
+) -> bool:
+    """
+    We try to map every layout to a 3x3 layout which MPI ranks
+    looks like
+        6 7 8
+        3 4 5
+        0 1 2
+    Using the partitionner we find mapping of the given layout
+    to all of those. For example on 4x4 layout
+        12 13 14 15
+        8  9  10 11
+        4  5  6  7
+        0  1  2  3
+    therefore we map
+        0 -> 0
+        1 -> 1
+        2 -> NOT COMPILING
+        3 -> 2
+        4 -> 3
+        5 -> 4
+        6 -> NOT COMPILING
+        7 -> 5
+        8 -> NOT COMPILING
+        9 -> NOT COMPILING
+        10 -> NOT COMPILING
+        11 -> NOT COMPILING
+        12 -> 6
+        13 -> 7
+        14 -> NOT COMPILING
+        15 -> 8
+    """
+
+    # Tile 0 compiles
+    if partitioner.tile_index(config.my_rank) != 0:
+        return False
+
+    # Corners compile
+    if _is_corner(config.my_rank, partitioner):
+        return True
+
+    # If edge or center tile, we give way to the smallest rank
+    return (
+        _smallest_rank_left(config.my_rank, config.layout)
+        or _smallest_rank_bottom(config.my_rank, config.layout)
+        or _smallest_rank_middle(config.my_rank, config.layout)
+        or _smallest_rank_right(config.my_rank, config.layout)
+        or _smallest_rank_top(config.my_rank, config.layout)
+    )
 
 
 class DaCeOrchestration(enum.Enum):
@@ -192,11 +279,15 @@ class DaceConfig:
                     self.my_rank, communicator.partitioner
                 )
             self.layout = communicator.partitioner.layout
+            self.compiling_rank = _determine_compiling_ranks(
+                self, communicator.partitioner
+            )
         else:
             self.my_rank = 0
             self.rank_size = 1
             self.target_rank = 0
             self.layout = (1, 1)
+            self.compiling_rank = True
 
         set_distributed_caches(self)
 

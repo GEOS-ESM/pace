@@ -11,19 +11,6 @@ from pace.dsl.dace.dace_config import DaceConfig, DaCeOrchestration
 # Distributed compilation
 
 
-def determine_compiling_ranks(config: DaceConfig) -> bool:
-    is_compiling = False
-    rank = config.my_rank
-    size = config.rank_size
-
-    if int(size / 6) == 0:
-        is_compiling = True
-    elif rank % int(size / 6) == rank:
-        is_compiling = True
-
-    return is_compiling
-
-
 def unblock_waiting_tiles(comm, sdfg_path: str) -> None:
     if comm and comm.Get_size() > 1:
         for tile in range(1, 6):
@@ -189,6 +176,16 @@ def set_distributed_caches(config: "DaceConfig"):
 
     # Execute specific initialization per orchestration state
     orchestration_mode = config.get_orchestrate()
+    if orchestration_mode == DaCeOrchestration.Python:
+        return
+
+    # Check our cache exist
+    if config.rank_size > 1:
+        rank = config.my_rank
+        target_rank_str = f"_{config.target_rank:06d}"
+    else:
+        rank = 0
+        target_rank_str = f"_{rank:06d}"
 
     # Check that we have all the file we need to early out in case
     # of issues.
@@ -197,13 +194,6 @@ def set_distributed_caches(config: "DaceConfig"):
 
         from gt4py.cartesian import config as gt_config
 
-        # Check our cache exist
-        if config.rank_size > 1:
-            rank = config.my_rank
-            target_rank_str = f"_{config.target_rank:06d}"
-        else:
-            rank = 0
-            target_rank_str = f"_{rank:06d}"
         cache_filepath = (
             f"{gt_config.cache_settings['root_path']}/.gt_cache{target_rank_str}"
         )
@@ -213,9 +203,16 @@ def set_distributed_caches(config: "DaceConfig"):
                 f"{rank} at {cache_filepath}"
             )
 
-        # All, good set this rank cache to the source cache
-        gt_config.cache_settings["dir_name"] = f".gt_cache{target_rank_str}"
-        print(
-            f"[{orchestration_mode}] Rank {rank} "
-            f"reading cache {gt_config.cache_settings['dir_name']}"
-        )
+    # Set read/write caches to the target rank
+    from gt4py.cartesian import config as gt_config
+
+    if config.compiling_rank:
+        verb = "reading/writing"
+    else:
+        verb = "reading"
+
+    gt_config.cache_settings["dir_name"] = f".gt_cache{target_rank_str}"
+    pace.util.pace_log.critical(
+        f"[{orchestration_mode}] Rank {rank} "
+        f"{verb} cache {gt_config.cache_settings['dir_name']}"
+    )

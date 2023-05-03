@@ -11,12 +11,7 @@ from dace.frontend.python.parser import DaceProgram
 from dace.transformation.auto.auto_optimize import make_transients_persistent
 from dace.transformation.helpers import get_parent_map
 
-from pace.dsl.dace.build import (
-    determine_compiling_ranks,
-    get_sdfg_path,
-    unblock_waiting_tiles,
-    write_build_info,
-)
+from pace.dsl.dace.build import get_sdfg_path, unblock_waiting_tiles, write_build_info
 from pace.dsl.dace.dace_config import (
     DEACTIVATE_DISTRIBUTED_DACE_COMPILE,
     DaceConfig,
@@ -34,6 +29,7 @@ from pace.dsl.dace.utils import (
     memory_static_analysis,
     report_memory_static_analysis,
 )
+from pace.util import pace_log
 from pace.util.mpi import MPI
 
 
@@ -122,7 +118,7 @@ def _build_sdfg(
     if DEACTIVATE_DISTRIBUTED_DACE_COMPILE:
         is_compiling = True
     else:
-        is_compiling = determine_compiling_ranks(config)
+        is_compiling = config.compiling_rank
     if is_compiling:
         # Make the transients array persistents
         if config.is_gpu_backend():
@@ -267,6 +263,7 @@ def _call_sdfg(
             config.get_orchestrate() == DaCeOrchestration.Build
             or config.get_orchestrate() == DaCeOrchestration.BuildAndRun
         ):
+            pace_log.info("Building DaCe orchestration")
             res = _build_sdfg(daceprog, sdfg, config, args, kwargs)
         elif config.get_orchestrate() == DaCeOrchestration.Run:
             # We should never hit this, it should be caught by the
@@ -302,7 +299,7 @@ def _parse_sdfg(
         if DEACTIVATE_DISTRIBUTED_DACE_COMPILE:
             is_compiling = True
         else:
-            is_compiling = determine_compiling_ranks(config)
+            is_compiling = config.compiling_rank
         if not is_compiling:
             # We can not parse the SDFG since we will load the proper
             # compiled SDFG from the compiling rank
@@ -448,7 +445,6 @@ class _LazyComputepathMethod:
         """Return SDFGEnabledCallable wrapping original obj.method from cache.
         Update cache first if need be"""
         if (id(obj), id(self.func)) not in _LazyComputepathMethod.bound_callables:
-
             _LazyComputepathMethod.bound_callables[
                 (id(obj), id(self.func))
             ] = _LazyComputepathMethod.SDFGEnabledCallable(self, obj)
