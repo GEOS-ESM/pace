@@ -157,7 +157,3 @@ def test_orchestrate_distributed_build():
         for i in range(layout[0] * layout[1] * 6):
             compiling += 1 if _does_compile(i, partition) else 0
         assert compiling == 9
-
-
-if __name__ == "__main__":
-    test_orchestrate_distributed_build()
