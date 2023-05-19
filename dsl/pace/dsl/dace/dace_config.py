@@ -4,6 +4,8 @@ from typing import Any, Dict, Optional, Tuple
 import dace.config
 from dace.codegen.compiled_sdfg import CompiledSDFG
 from dace.frontend.python.parser import DaceProgram
+from pace.dsl.caches.cache_location import identify_code_path
+from pace.dsl.caches.codepath import FV3CodePath
 
 from pace.dsl.gt4py_utils import is_gpu_backend
 from pace.util._optional_imports import cupy as cp
@@ -30,24 +32,24 @@ def _is_corner(rank: int, partitioner: CubedSpherePartitioner) -> bool:
     return False
 
 
-def _smallest_rank_bottom(rank: int, layout: Tuple[int, int]):
-    return rank == 1
+def _smallest_rank_bottom(x: int, y: int, layout: Tuple[int, int]):
+    return y == 0 and x == 1
 
 
-def _smallest_rank_top(rank: int, layout: Tuple[int, int]):
-    return rank == (layout[0] * (layout[1] - 1) + 1)
+def _smallest_rank_top(x: int, y: int, layout: Tuple[int, int]):
+    return y == layout[1] - 1 and x == 1
 
 
-def _smallest_rank_left(rank: int, layout: Tuple[int, int]):
-    return rank == layout[0]
+def _smallest_rank_left(x: int, y: int, layout: Tuple[int, int]):
+    return x == 0 and y == 1
 
 
-def _smallest_rank_right(rank: int, layout: Tuple[int, int]):
-    return rank == (2 * layout[0] - 1)
+def _smallest_rank_right(x: int, y: int, layout: Tuple[int, int]):
+    return x == layout[0] - 1 and y == 1
 
 
-def _smallest_rank_middle(rank: int, layout: Tuple[int, int]):
-    return rank == (layout[0] + 1)
+def _smallest_rank_middle(x: int, y: int, layout: Tuple[int, int]):
+    return layout[0] > 1 and layout[1] > 1 and x == 1 and y == 1
 
 
 def _determine_compiling_ranks(
@@ -93,13 +95,15 @@ def _determine_compiling_ranks(
     if _is_corner(config.my_rank, partitioner):
         return True
 
+    y, x = partitioner.tile.subtile_index(config.my_rank)
+
     # If edge or center tile, we give way to the smallest rank
     return (
-        _smallest_rank_left(config.my_rank, config.layout)
-        or _smallest_rank_bottom(config.my_rank, config.layout)
-        or _smallest_rank_middle(config.my_rank, config.layout)
-        or _smallest_rank_right(config.my_rank, config.layout)
-        or _smallest_rank_top(config.my_rank, config.layout)
+        _smallest_rank_left(x, y, config.layout)
+        or _smallest_rank_bottom(x, y, config.layout)
+        or _smallest_rank_middle(x, y, config.layout)
+        or _smallest_rank_right(x, y, config.layout)
+        or _smallest_rank_top(x, y, config.layout)
     )
 
 
@@ -266,28 +270,26 @@ class DaceConfig:
 
         self._backend = backend
         self.tile_resolution = [tile_nx, tile_nx, tile_nz]
-        from pace.dsl.dace.build import get_target_rank, set_distributed_caches
+        from pace.dsl.dace.build import (
+            set_distributed_caches,
+        )
 
         # Distributed build required info
         if communicator:
             self.my_rank = communicator.rank
             self.rank_size = communicator.comm.Get_size()
-            if DEACTIVATE_DISTRIBUTED_DACE_COMPILE:
-                self.target_rank = communicator.rank
-            else:
-                self.target_rank = get_target_rank(
-                    self.my_rank, communicator.partitioner
-                )
+            self.code_path = identify_code_path(self.my_rank, communicator.partitioner)
             self.layout = communicator.partitioner.layout
-            self.compiling_rank = _determine_compiling_ranks(
-                self, communicator.partitioner
+            self.do_compile = (
+                DEACTIVATE_DISTRIBUTED_DACE_COMPILE
+                or _determine_compiling_ranks(self, communicator.partitioner)
             )
         else:
             self.my_rank = 0
             self.rank_size = 1
-            self.target_rank = 0
+            self.code_path = FV3CodePath.All
             self.layout = (1, 1)
-            self.compiling_rank = True
+            self.do_compile = True
 
         set_distributed_caches(self)
 
