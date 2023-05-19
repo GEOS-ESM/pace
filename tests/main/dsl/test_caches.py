@@ -157,6 +157,7 @@ def test_relocatability(backend):
 
 
 if __name__ == "__main__":
+    # TODO: test can be merged once gt4py also generates in the _FV3_X format
     test_relocatability("gt:cpu_ifirst")
     test_relocatability("dace:cpu")
     test_relocatability_orchestration("dace:cpu")
