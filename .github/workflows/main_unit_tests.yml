@@ -16,8 +16,8 @@ jobs:
         - name: Install Python packages
           run: |
             python -m pip install --upgrade pip
-            pip install -r pace/requirements_dev.txt
+            pip install -r requirements_dev.txt
         - name: Run all main tests
           run: |
-            pytests -x pace/tests/main
+            pytests -x tests/main
 
