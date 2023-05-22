@@ -1,11 +1,10 @@
 import pytest
-
 from gt4py.cartesian.gtscript import PARALLEL, Field, computation, interval
 from gt4py.storage import empty, ones
 
 import pace.dsl
-from pace.dsl.dace.dace_config import DaceConfig, DaCeOrchestration
 from pace.dsl.dace import orchestrate
+from pace.dsl.dace.dace_config import DaceConfig, DaCeOrchestration
 from pace.dsl.stencil import CompilationConfig, GridIndexing
 
 

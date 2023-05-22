@@ -1,5 +1,5 @@
-from pace.util import CubedSpherePartitioner
 from pace.dsl.caches.codepath import FV3CodePath
+from pace.util import CubedSpherePartitioner
 
 
 def identify_code_path(

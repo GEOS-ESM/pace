@@ -1,9 +1,9 @@
 from typing import List, Optional, Tuple
 
 from dace.sdfg import SDFG
-from pace.dsl.caches.cache_location import get_cache_directory, get_cache_fullpath
 
 import pace.util
+from pace.dsl.caches.cache_location import get_cache_directory, get_cache_fullpath
 from pace.dsl.dace.dace_config import DaceConfig, DaCeOrchestration
 
 
