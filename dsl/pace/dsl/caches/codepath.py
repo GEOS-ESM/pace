@@ -20,6 +20,7 @@ class FV3CodePath(enum.Enum):
     TopRight = "FV3_TR"
     Right = "FV3_R"
     BottomRight = "FV3_BR"
+    Bottom = "FV3_B"
     Center = "FV3_C"
 
     def __str__(self):
