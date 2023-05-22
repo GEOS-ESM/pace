@@ -9,6 +9,8 @@ jobs:
     steps:
         - name: Checkout Pace repository
           uses: actions/checkout@v3.5.2
+          with:
+            submodules: 'recursive'
         - name: Step Python 3.8.12
           uses: actions/setup-python@v4.6.0
           with:
