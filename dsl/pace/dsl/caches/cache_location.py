@@ -8,6 +8,10 @@ def identify_code_path(
 ) -> FV3CodePath:
     if partitioner.layout == (1, 1) or partitioner.layout == [1, 1]:
         return FV3CodePath.All
+    elif partitioner.layout[0] == 1 or partitioner.layout[1] == 1:
+        raise NotImplementedError(
+            f"Build for layout {partitioner.layout} is not handled"
+        )
     else:
         if partitioner.tile.on_tile_bottom(rank):
             if partitioner.tile.on_tile_left(rank):
