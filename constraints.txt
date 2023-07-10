@@ -87,7 +87,7 @@ cytoolz==0.11.2
     # via
     #   gt4py
     #   gt4py (external/gt4py/setup.cfg)
-dace==0.14.2
+dace==0.14.4
     # via
     #   -r requirements_dev.txt
     #   pace-dsl

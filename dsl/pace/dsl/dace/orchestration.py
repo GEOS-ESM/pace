@@ -66,7 +66,6 @@ def _download_results_from_dace(
                 gt4py.storage.from_array(
                     r,
                     backend=config.get_backend(),
-                    managed_memory=True,
                 )
                 for r in dace_result
             ]
