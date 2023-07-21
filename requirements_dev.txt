@@ -20,3 +20,4 @@ numpy>=1.15
 -e physics
 -e fv3core
 -e driver
+-e util
