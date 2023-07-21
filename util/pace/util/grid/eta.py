@@ -206,7 +206,6 @@ def set_hybrid_pressure_coefficients(km: int) -> HybridPressureCoefficients:
         )
 
     elif km == 91:
-
         ak = np.array(
             [
                 1.00000000,
@@ -402,7 +401,6 @@ def set_hybrid_pressure_coefficients(km: int) -> HybridPressureCoefficients:
         )
 
     elif km == 72:
-
         ak = np.array(
             [
                 1.00000000,
@@ -560,7 +558,6 @@ def set_hybrid_pressure_coefficients(km: int) -> HybridPressureCoefficients:
         )
 
     elif km == 137:
-
         ak = np.array(
             [
                 1.00000000,
@@ -849,7 +846,8 @@ def set_hybrid_pressure_coefficients(km: int) -> HybridPressureCoefficients:
 
     else:
         raise NotImplementedError(
-            "Only grids with 72, 79, 91 or 137 vertical levels have been implemented so far"
+            "Only grids with 72, 79, 91 or 137 vertical levels"
+            " have been implemented so far"
         )
 
     if 0.0 in bk:
