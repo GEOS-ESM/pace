@@ -846,8 +846,8 @@ def set_hybrid_pressure_coefficients(km: int) -> HybridPressureCoefficients:
 
     else:
         raise NotImplementedError(
-            "Only grids with 72, 79, 91 or 137 vertical levels"
-            " have been implemented so far"
+            "Only grids with 72, 79, 91 or 137 vertical levels "
+            "have been implemented so far"
         )
 
     if 0.0 in bk:
