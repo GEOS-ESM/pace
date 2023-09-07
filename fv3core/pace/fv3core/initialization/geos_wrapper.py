@@ -1,10 +1,12 @@
 import enum
+import logging
 import os
 from datetime import timedelta
 from typing import Dict, List, Tuple
 
 import f90nml
 import numpy as np
+from gt4py.cartesian.config import build_settings as gt_build_settings
 from mpi4py import MPI
 
 import pace.util
@@ -34,6 +36,7 @@ class StencilBackendCompilerOverride:
     def __init__(self, comm: MPI.Intracomm, config: DaceConfig):
         self.comm = comm
         self.config = config
+
         # Orchestration or mono-node is not concerned
         self.no_op = self.config.is_dace_orchestrated() or self.comm.Get_size() == 1
 
@@ -42,6 +45,12 @@ class StencilBackendCompilerOverride:
             config._orchestrate = DaCeOrchestration.Build
             set_distributed_caches(config)
             config._orchestrate = DaCeOrchestration.Python
+
+        # We remove warnings from the stencils compiling when in critical and/or
+        # error
+        if pace_log.level > logging.WARNING:
+            gt_build_settings["extra_compile_args"]["cxx"].append("-w")
+            gt_build_settings["extra_compile_args"]["cuda"].append("-w")
 
     def __enter__(self):
         if self.no_op:
