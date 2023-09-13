@@ -50,7 +50,10 @@ class StencilBackendCompilerOverride:
         # error
         if pace_log.level > logging.WARNING:
             gt_build_settings["extra_compile_args"]["cxx"].append("-w")
-            gt_build_settings["extra_compile_args"]["cuda"].append("-w")
+            if "cuda" in gt_build_settings["extra_compile_args"].keys():
+                gt_build_settings["extra_compile_args"]["cuda"].append("-w")
+            if "nvcc" in gt_build_settings["extra_compile_args"].keys():
+                gt_build_settings["extra_compile_args"]["nvcc"].append("-w")
 
     def __enter__(self):
         if self.no_op:
