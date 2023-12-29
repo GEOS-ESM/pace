@@ -777,6 +777,11 @@ class DGridShallowWaterLagrangianDynamics:
 
         # only compute for k-levels where this is true
         self.hydrostatic = config.hydrostatic
+        if self.hydrostatic:
+            raise NotImplementedError(
+                "D-Grid Shallow Water Lagrangian Dynamics (D_SW):"
+                " Hydrostatic is not implemented"
+            )
 
         def make_quantity():
             return quantity_factory.zeros(
