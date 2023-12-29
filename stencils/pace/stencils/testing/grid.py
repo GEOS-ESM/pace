@@ -6,7 +6,7 @@ import numpy as np
 import pace.util
 from pace.dsl import gt4py_utils as utils
 from pace.dsl.stencil import GridIndexing
-from pace.typing import Float
+from pace.dsl.typing import Float
 from pace.util.grid import (
     AngleGridData,
     ContravariantGridData,

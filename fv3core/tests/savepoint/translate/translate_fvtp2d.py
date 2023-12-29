@@ -1,7 +1,7 @@
 import pace.dsl
 import pace.dsl.gt4py_utils as utils
-from pace.dsl.typing import Float
 import pace.util
+from pace.dsl.typing import Float
 from pace.fv3core.stencils.fvtp2d import FiniteVolumeTransport
 from pace.fv3core.testing import TranslateDycoreFortranData2Py
 
