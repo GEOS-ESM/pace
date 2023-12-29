@@ -1,7 +1,6 @@
 import pace.dsl
 import pace.dsl.gt4py_utils as utils
 import pace.util
-from pace.dsl.typing import Float
 from pace.fv3core.stencils import yppm
 from pace.fv3core.testing import TranslateDycoreFortranData2Py
 from pace.stencils.testing import TranslateGrid
@@ -41,9 +40,7 @@ class TranslateYPPM(TranslateDycoreFortranData2Py):
         self.ivars(inputs)
         self.make_storage_data_input_vars(inputs)
         inputs["flux"] = utils.make_storage_from_shape(
-            inputs["q"].shape,
-            backend=self.stencil_factory.backend,
-            dtype=Float,
+            inputs["q"].shape, backend=self.stencil_factory.backend
         )
 
     def compute(self, inputs):
