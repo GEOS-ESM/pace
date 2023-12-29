@@ -591,7 +591,7 @@ class RemapProfile:
             config=stencil_factory.config.dace_config,
         )
 
-        if kord <= 10:
+        if kord > 10:
             raise NotImplementedError(
                 f"Remap Profile: kord {kord} not implemented. kord <= 10 available."
             )
