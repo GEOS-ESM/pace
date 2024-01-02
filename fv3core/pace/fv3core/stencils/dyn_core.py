@@ -26,7 +26,7 @@ import pace.util.constants as constants
 from pace.dsl.dace.orchestration import dace_inhibitor, orchestrate
 from pace.dsl.dace.wrapped_halo_exchange import WrappedHaloUpdater
 from pace.dsl.stencil import GridIndexing, StencilFactory
-from pace.dsl.typing import Float, FloatField, FloatFieldIJ
+from pace.dsl.typing import Float, FloatField, FloatFieldIJ, floating_point_precision
 from pace.fv3core._config import AcousticDynamicsConfig
 from pace.fv3core.dycore_state import DycoreState
 from pace.fv3core.stencils.c_sw import CGridShallowWaterDynamics
@@ -45,7 +45,10 @@ from pace.util import (
 from pace.util.grid import DampingCoefficients, GridData
 
 
-HUGE_R = 1.0e40
+if floating_point_precision() == 32:
+    HUGE_R = 1e8
+else:
+    HUGE_R = 1.0e40
 
 
 def zero_data(

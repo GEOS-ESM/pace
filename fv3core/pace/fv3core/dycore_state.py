@@ -1,11 +1,11 @@
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Dict, Mapping, Union
+from typing import Any, Dict, Mapping, Optional, Tuple, Union
 
 import xarray as xr
 
 import pace.dsl.gt4py_utils as gt_utils
 import pace.util
-from pace.dsl.typing import Float
+from pace.dsl.typing import PACE_32BIT_FLOAT_TYPE, PACE_64BIT_FLOAT_TYPE, Float
 from pace.util.quantity import Quantity
 
 
@@ -301,14 +301,44 @@ class DycoreState:
                         )
 
     @classmethod
+    def field_dtype_configuration(
+        cls, field_name: str, storage_dtype: Optional[type] = None
+    ) -> Tuple[type, bool]:
+        """All fields follow the model wide Float apart from mfx/y and cx/y which
+        will always be 64-bit floats for accumulation.
+
+        storage_dtype: if given, this represent a 3rd party storage type. If it doesn't
+        align with the expected storage, an error will be raised.
+
+        Return:
+            type: the floating type of the field
+            bool: allow_mismatch_float configuration for the Qty build
+        """
+        if (
+            field_name == "mfxd"
+            or field_name == "mfyd"
+            or field_name == "cxd"
+            or field_name == "cyd"
+        ):
+            if storage_dtype and storage_dtype != PACE_64BIT_FLOAT_TYPE:
+                raise RuntimeError(
+                    f"[Dycore state]: bad type given for {field_name}."
+                    f" Expected {PACE_64BIT_FLOAT_TYPE} got {storage_dtype}."
+                )
+            return PACE_64BIT_FLOAT_TYPE, (Float == PACE_32BIT_FLOAT_TYPE)
+        return Float, False
+
+    @classmethod
     def init_zeros(cls, quantity_factory: pace.util.QuantityFactory):
         initial_storages = {}
         for _field in fields(cls):
             if "dims" in _field.metadata.keys():
+                dtype, mismatch = cls.field_dtype_configuration(_field.name)
                 initial_storages[_field.name] = quantity_factory.zeros(
                     _field.metadata["dims"],
                     _field.metadata["units"],
-                    dtype=Float,
+                    dtype=dtype,
+                    allow_mismatch_float_precision=mismatch,
                 ).data
         return cls.init_from_storages(
             storages=initial_storages, sizer=quantity_factory.sizer
@@ -328,6 +358,9 @@ class DycoreState:
         for _field in fields(cls):
             if "dims" in _field.metadata.keys():
                 dims = _field.metadata["dims"]
+                _dtype, mismatch = cls.field_dtype_configuration(
+                    _field.name, dict_of_numpy_arrays[_field.name].dtype
+                )
                 dict_state[_field.name] = pace.util.Quantity(
                     dict_of_numpy_arrays[_field.name],
                     dims,
@@ -335,6 +368,7 @@ class DycoreState:
                     origin=sizer.get_origin(dims),
                     extent=sizer.get_extent(dims),
                     gt4py_backend=backend,
+                    allow_mismatch_float_precision=mismatch,
                 )
         state = cls(**dict_state)  # type: ignore
         return state
@@ -350,6 +384,9 @@ class DycoreState:
         inputs = {}
         for _field in fields(cls):
             if "dims" in _field.metadata.keys():
+                _dtype, mismatch = cls.field_dtype_configuration(
+                    _field.name, storages[_field.name].dtype
+                )
                 dims = _field.metadata["dims"]
                 quantity = pace.util.Quantity(
                     storages[_field.name],
@@ -357,6 +394,7 @@ class DycoreState:
                     _field.metadata["units"],
                     origin=sizer.get_origin(dims),
                     extent=sizer.get_extent(dims),
+                    allow_mismatch_float_precision=mismatch,
                 )
                 inputs[_field.name] = quantity
         return cls(**inputs, bdt=bdt, mdt=mdt)

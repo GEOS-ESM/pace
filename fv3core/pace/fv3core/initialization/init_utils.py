@@ -6,7 +6,6 @@ import numpy as np
 
 import pace.util as fv3util
 import pace.util.constants as constants
-from pace.dsl.typing import Float
 from pace.fv3core.dycore_state import DycoreState
 from pace.util.grid import lon_lat_midpoint
 from pace.util.grid.gnomonic import get_lonlat_vect, get_unit_vector_direction
@@ -119,16 +118,16 @@ def empty_numpy_dycore_state(shape):
     numpy_dict = {}
     for _field in fields(DycoreState):
         if "dims" in _field.metadata.keys():
+            field_type, mismatch = DycoreState.field_dtype_configuration(_field.name)
             numpy_dict[_field.name] = np.zeros(
                 shape[: len(_field.metadata["dims"])],
-                dtype=Float,
+                dtype=field_type,
             )
     numpy_state = SimpleNamespace(**numpy_dict)
     return numpy_state
 
 
 def _find_midpoint_unit_vectors(p1, p2):
-
     midpoint = np.array(
         lon_lat_midpoint(p1[:, :, 0], p2[:, :, 0], p1[:, :, 1], p2[:, :, 1], np)
     ).transpose([1, 2, 0])
