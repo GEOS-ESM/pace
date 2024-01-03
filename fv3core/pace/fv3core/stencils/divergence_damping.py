@@ -22,6 +22,7 @@ from pace.fv3core.stencils.a2b_ord4 import (
 from pace.fv3core.stencils.d2a2c_vect import contravariant
 from pace.util import X_DIM, X_INTERFACE_DIM, Y_DIM, Y_INTERFACE_DIM, Z_DIM
 from pace.util.grid import DampingCoefficients, GridData
+import numpy as np
 
 
 @gtscript.function
@@ -252,7 +253,7 @@ def smagorinsky_diffusion_approx(delpc: FloatField, vort: FloatField, absdt: Flo
         absdt (in): abs(dt)
     """
     with computation(PARALLEL), interval(...):
-        vort = absdt * (delpc ** 2.0 + vort ** 2.0) ** 0.5
+        vort = absdt * (delpc**2.0 + vort**2.0) ** 0.5
 
 
 def smag_corner(
@@ -296,7 +297,7 @@ def smag_corner(
         wk = rarea * (vt2 - vt2[0, 1, 0] + ut2 - ut2[1, 0, 0])
 
         shear = doubly_periodic_a2b_ord4(wk)
-        smag_c = dt * sqrt(shear ** 2 + smag_c_t ** 2)
+        smag_c = dt * sqrt(shear**2 + smag_c_t**2)
 
 
 class DivergenceDamping:
@@ -330,7 +331,8 @@ class DivergenceDamping:
         # TODO: make dddmp a compile-time external, instead of runtime scalar
         self._dddmp = dddmp
         # TODO: make da_min_c a compile-time external, instead of runtime scalar
-        self._damping_coefficients = damping_coefficients
+        self._da_min_c = Float(damping_coefficients.da_min_c)
+        self._da_min = Float(damping_coefficients.da_min)
         self._stretched_grid = stretched_grid
         self._d4_bg = d4_bg
         self._grid_type = grid_type
@@ -371,6 +373,7 @@ class DivergenceDamping:
                 nonzero_nord_k = k
                 self._nonzero_nord = int(self._nord_column.view[k])
                 break
+        self._nonzero_nord_runtime = np.int32(self._nonzero_nord)
 
         kstart = nonzero_nord_k
         nk = self.grid_indexing.domain[2] - kstart
@@ -541,14 +544,6 @@ class DivergenceDamping:
     # N.B.: another solution is to pass da_min and da_min_c as input, put it seems
     # odd and adds a lot of boilerplate throughout the model code.
 
-    @dace_inhibitor
-    def _get_da_min_c(self) -> float:
-        return self._damping_coefficients.da_min_c
-
-    @dace_inhibitor
-    def _get_da_min(self) -> float:
-        return self._damping_coefficients.da_min
-
     def __call__(
         self,
         u: FloatField,
@@ -635,13 +630,12 @@ class DivergenceDamping:
                 self.v_contra_dxc,
             )
 
-            da_min_c: Float = self._get_da_min_c()
             self._damping(
                 delpc,
                 damped_rel_vort_bgrid,
                 ke,
                 self._d2_bg_column,
-                da_min_c,
+                self._da_min_c,
                 self._dddmp,
                 dt,
             )
@@ -697,12 +691,11 @@ class DivergenceDamping:
                     abs(dt),
                 )
 
-        da_min: Float = self._get_da_min()
         if self._stretched_grid:
             # reference https://github.com/NOAA-GFDL/GFDL_atmos_cubed_sphere/blob/main/model/sw_core.F90#L1422 # noqa: E501
-            dd8 = da_min * self._d4_bg ** (self._nonzero_nord + 1)
+            dd8 = self._da_min * self._d4_bg ** (self._nonzero_nord_runtime + 1)
         else:
-            dd8 = (da_min_c * self._d4_bg) ** (self._nonzero_nord + 1)
+            dd8 = (self._da_min_c * self._d4_bg) ** (self._nonzero_nord_runtime + 1)
 
         self._damping_nord_highorder_stencil(
             damped_rel_vort_bgrid,
@@ -710,7 +703,7 @@ class DivergenceDamping:
             delpc,
             divg_d,
             self._d2_bg_column,
-            da_min_c,
+            self._da_min_c,
             self._dddmp,
             dd8,
         )

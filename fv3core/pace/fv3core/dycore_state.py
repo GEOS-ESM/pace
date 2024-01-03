@@ -7,6 +7,7 @@ import pace.dsl.gt4py_utils as gt_utils
 import pace.util
 from pace.dsl.typing import PACE_32BIT_FLOAT_TYPE, PACE_64BIT_FLOAT_TYPE, Float
 from pace.util.quantity import Quantity
+from pace.util import constants
 
 
 @dataclass()
@@ -304,7 +305,7 @@ class DycoreState:
     def field_dtype_configuration(
         cls, field_name: str, storage_dtype: Optional[type] = None
     ) -> Tuple[type, bool]:
-        """All fields follow the model wide Float apart from mfx/y and cx/y which
+        """[GEOS ONLY] All fields follow the model wide Float apart from mfx/y and cx/y which
         will always be 64-bit floats for accumulation.
 
         storage_dtype: if given, this represent a 3rd party storage type. If it doesn't
@@ -314,7 +315,7 @@ class DycoreState:
             type: the floating type of the field
             bool: allow_mismatch_float configuration for the Qty build
         """
-        if (
+        if constants.CONST_VERSION == constants.ConstantVersions.GEOS and (
             field_name == "mfxd"
             or field_name == "mfyd"
             or field_name == "cxd"

@@ -1396,7 +1396,7 @@ class MetricTerms:
         return self._edge_vect_n
 
     @property
-    def da_min(self) -> float:
+    def da_min(self) -> Float:
         """
         the minimum agrid cell area across all ranks,
         if mpi is not present and the communicator is a DummyComm this will be
@@ -1404,10 +1404,10 @@ class MetricTerms:
         """
         if self._da_min is None:
             self._reduce_global_area_minmaxes()
-        return self._da_min
+        return Float(self._da_min)
 
     @property
-    def da_max(self) -> float:
+    def da_max(self) -> Float:
         """
         the maximum agrid cell area across all ranks,
         if mpi is not present and the communicator is a DummyComm this will be
@@ -1415,10 +1415,10 @@ class MetricTerms:
         """
         if self._da_max is None:
             self._reduce_global_area_minmaxes()
-        return self._da_max
+        return Float(self._da_max)
 
     @property
-    def da_min_c(self) -> float:
+    def da_min_c(self) -> Float:
         """
         the minimum cgrid cell area across all ranks,
         if mpi is not present and the communicator is a DummyComm this will be
@@ -1426,10 +1426,10 @@ class MetricTerms:
         """
         if self._da_min_c is None:
             self._reduce_global_area_minmaxes()
-        return self._da_min_c
+        return Float(self._da_min_c)
 
     @property
-    def da_max_c(self) -> float:
+    def da_max_c(self) -> Float:
         """
         the maximum cgrid cell area across all ranks,
         if mpi is not present and the communicator is a DummyComm this will be
@@ -1437,7 +1437,7 @@ class MetricTerms:
         """
         if self._da_max_c is None:
             self._reduce_global_area_minmaxes()
-        return self._da_max_c
+        return Float(self._da_max_c)
 
     @property
     def area(self) -> util.Quantity:
@@ -1596,7 +1596,6 @@ class MetricTerms:
         )
 
     def _init_cartesian(self):
-
         domain_rad = PI / 16.0
         lat_rad = self._deglat * PI / 180.0
         lon_rad = 0.0
@@ -2610,7 +2609,6 @@ class MetricTerms:
         self._sina = quantity_cast_to_model_float(self.quantity_factory, sina_64)
 
     def _init_cell_trigonometry_cartesian(self):
-
         cosa_u_64 = self.quantity_factory.zeros(
             [util.X_INTERFACE_DIM, util.Y_DIM],
             "",

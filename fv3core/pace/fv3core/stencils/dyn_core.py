@@ -438,7 +438,7 @@ class AcousticDynamics:
             raise RuntimeError("Acoustics (dyn_core): beta != 0 is not implemented")
         if config.use_logp:
             raise RuntimeError("Acoustics (dyn_core): use_logp=True is not implemented")
-        self._da_min = damping_coefficients.da_min
+        self._da_min = Float(damping_coefficients.da_min)
         self.grid_data = grid_data
         self._ptop = grid_data.ptop
         self._pfull = grid_data.p
@@ -701,17 +701,6 @@ class AcousticDynamics:
                 mfyd=state.mfyd,
             )
 
-    # TODO: fix me - we shouldn't need a function here, Dace is fudging the types
-    # See https://github.com/GEOS-ESM/pace/issues/9
-    @dace_inhibitor
-    def dt_acoustic_substep(self, timestep: Float) -> Float:
-        return timestep / self.config.n_split
-
-    # TODO: Same as above
-    @dace_inhibitor
-    def dt2(self, dt_acoustic_substep: Float) -> Float:
-        return 0.5 * dt_acoustic_substep
-
     def __call__(
         self,
         state: DycoreState,
@@ -723,9 +712,10 @@ class AcousticDynamics:
         # akap, ptop, n_map, comm):
         end_step = n_map == self.config.k_split
         # dt = state.mdt / self.config.n_split
-        dt_acoustic_substep: Float = self.dt_acoustic_substep(timestep)
-        dt2: Float = self.dt2(dt_acoustic_substep)
+        dt_acoustic_substep = timestep / Float(self.config.n_split)
+        dt2 = 0.5 * dt_acoustic_substep
         n_split = self.config.n_split
+
         # NOTE: In Fortran model the halo update starts happens in fv_dynamics, not here
         self._halo_updaters.q_con__cappa.start()
         self._halo_updaters.delp__pt.start()
@@ -993,8 +983,7 @@ class AcousticDynamics:
         if self._do_del2cubed:
             self._halo_updaters.heat_source.update()
             # TODO: move dependence on da_min into init of hyperdiffusion class
-            da_min: Float = self._get_da_min()
-            cd = constants.CNST_0P20 * da_min
+            cd = constants.CNST_0P20 * self._da_min
             # we want to diffuse the heat source from damping before we apply it,
             # so that we don't reinforce the same grid-scale patterns we're trying
             # to damp
