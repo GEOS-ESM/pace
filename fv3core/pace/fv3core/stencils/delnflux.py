@@ -82,18 +82,26 @@ def fy_calc_stencil_nord(
 
 
 def fx_calc_stencil_column(
-    q: FloatField, del6_v: FloatFieldIJ, fx: FloatField, nord: FloatFieldK
+    q: FloatField,
+    del6_v: FloatFieldIJ,
+    fx: FloatField,
+    nord: FloatFieldK,
+    current_nord: int,
 ):
     with computation(PARALLEL), interval(...):
-        if nord > 0:
+        if nord > current_nord:
             fx = fx_calculation_neg(q, del6_v)
 
 
 def fy_calc_stencil_column(
-    q: FloatField, del6_u: FloatFieldIJ, fy: FloatField, nord: FloatFieldK
+    q: FloatField,
+    del6_u: FloatFieldIJ,
+    fy: FloatField,
+    nord: FloatFieldK,
+    current_nord: int,
 ):
     with computation(PARALLEL), interval(...):
-        if nord > 0:
+        if nord > current_nord:
             fy = fy_calculation_neg(q, del6_u)
 
 
@@ -123,9 +131,10 @@ def d2_highorder_stencil_FV3GFS(
     rarea: FloatFieldIJ,
     nord: FloatFieldK,
     d2: FloatField,
+    current_nord: int,
 ):
     with computation(PARALLEL), interval(...):
-        if nord > 0:
+        if nord > current_nord:
             d2 = (fx - fx[1, 0, 0] + fy - fy[0, 1, 0]) * rarea
 
 
@@ -135,9 +144,10 @@ def d2_highorder_stencil_GEOS(
     rarea: FloatFieldIJ,
     nord: FloatFieldK,
     d2: FloatField,
+    current_nord: int,
 ):
     with computation(PARALLEL), interval(...):
-        if nord > 0:
+        if nord > current_nord:
             d2 = ((fx - fx[1, 0, 0]) + (fy - fy[0, 1, 0])) * rarea
 
 
@@ -189,7 +199,7 @@ def copy_stencil_interval(q_in: FloatField, q_out: FloatField, nord: FloatFieldK
     )
 
     with computation(PARALLEL), interval(...):
-        if nord > 0:
+        if nord == 0:
             with horizontal(
                 region[local_is - 1 : local_ie + 2, local_js - 1 : local_je + 2]
             ):
@@ -219,7 +229,9 @@ def diffusive_damp(
         fy = fy + 0.5 * damp * (mass[0, -1, 0] + mass) * fy2
 
 
-def copy_corners_y_nord(q_in: FloatField, q_out: FloatField, nord: FloatFieldK):
+def copy_corners_y_nord(
+    q_in: FloatField, q_out: FloatField, nord: FloatFieldK, current_nord: int
+):
     """
     Args:
         q_in (in):
@@ -228,7 +240,7 @@ def copy_corners_y_nord(q_in: FloatField, q_out: FloatField, nord: FloatFieldK):
     from __externals__ import i_end, i_start, j_end, j_start
 
     with computation(PARALLEL), interval(...):
-        if nord > 0:
+        if nord > current_nord:
             with horizontal(
                 region[i_start - 3, j_start - 3], region[i_start - 3, j_end + 3]
             ):
@@ -303,7 +315,9 @@ def copy_corners_y_nord(q_in: FloatField, q_out: FloatField, nord: FloatFieldK):
                 q_out = q_in[-3, -2, 0]
 
 
-def copy_corners_x_nord(q_in: FloatField, q_out: FloatField, nord: FloatFieldK):
+def copy_corners_x_nord(
+    q_in: FloatField, q_out: FloatField, nord: FloatFieldK, current_nord: int
+):
     """
     Args:
         q_in (in):
@@ -312,7 +326,7 @@ def copy_corners_x_nord(q_in: FloatField, q_out: FloatField, nord: FloatFieldK):
     from __externals__ import i_end, i_start, j_end, j_start
 
     with computation(PARALLEL), interval(...):
-        if nord > 0:
+        if nord > current_nord:
             with horizontal(
                 region[i_start - 3, j_start - 3], region[i_end + 3, j_start - 3]
             ):
@@ -584,17 +598,6 @@ class DelnFluxNoSG:
             domains_fx.append((nt_nx - 1, nt_ny - 2, nk))
             domains_fy.append((nt_nx - 2, nt_ny - 1, nk))
 
-        nord_dictionary = {
-            "nord0": float(nord.view[0]),
-            "nord1": float(nord.view[1]),
-            "nord2": float(nord.view[2]),
-            "nord3": float(nord.view[3]),
-        }
-        nord_dictionary["nord0"] = Float(nord_dictionary["nord0"])
-        nord_dictionary["nord1"] = Float(nord_dictionary["nord1"])
-        nord_dictionary["nord2"] = Float(nord_dictionary["nord2"])
-        nord_dictionary["nord3"] = Float(nord_dictionary["nord3"])
-
         self._d2_damp = stencil_factory.from_origin_domain(
             d2_damp_interval,
             externals={
@@ -685,11 +688,11 @@ class DelnFluxNoSG:
         else:
             self._copy_stencil_interval(q_in=q, q_out=d2, nord=self._nord)
 
-        self._copy_corners_x_nord(q_in=d2, q_out=d2, nord=self._nord)
+        self._copy_corners_x_nord(q_in=d2, q_out=d2, nord=self._nord, current_nord=0)
 
         self._fx_calc_stencil(q=d2, del6_v=self._del6_v, fx=fx2, nord=self._nord)
 
-        self._copy_corners_y_nord(q_in=d2, q_out=d2, nord=self._nord)
+        self._copy_corners_y_nord(q_in=d2, q_out=d2, nord=self._nord, current_nord=0)
 
         self._fy_calc_stencil(q=d2, del6_u=self._del6_u, fy=fy2, nord=self._nord)
 
@@ -700,16 +703,21 @@ class DelnFluxNoSG:
                 rarea=self._rarea,
                 nord=self._nord,
                 d2=d2,
+                current_nord=n,
             )
 
-            self._copy_corners_x_nord(q_in=d2, q_out=d2, nord=self._nord)
+            self._copy_corners_x_nord(
+                q_in=d2, q_out=d2, nord=self._nord, current_nord=n
+            )
 
             self._column_conditional_fx_calculation[n](
-                q=d2, del6_v=self._del6_v, fx=fx2, nord=self._nord
+                q=d2, del6_v=self._del6_v, fx=fx2, nord=self._nord, current_nord=n
             )
 
-            self._copy_corners_y_nord(q_in=d2, q_out=d2, nord=self._nord)
+            self._copy_corners_y_nord(
+                q_in=d2, q_out=d2, nord=self._nord, current_nord=n
+            )
 
             self._column_conditional_fy_calculation[n](
-                q=d2, del6_u=self._del6_u, fy=fy2, nord=self._nord
+                q=d2, del6_u=self._del6_u, fy=fy2, nord=self._nord, current_nord=n
             )
