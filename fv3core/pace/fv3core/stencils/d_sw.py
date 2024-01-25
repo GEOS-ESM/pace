@@ -24,6 +24,7 @@ from pace.fv3core.stencils.fxadv import FiniteVolumeFluxPrep
 from pace.fv3core.stencils.xtp_u import advect_u_along_x
 from pace.fv3core.stencils.ytp_v import advect_v_along_y
 from pace.util import X_DIM, X_INTERFACE_DIM, Y_DIM, Y_INTERFACE_DIM, Z_DIM
+from pace.util.constants import IS_GEOS
 from pace.util.grid import DampingCoefficients, GridData
 
 
@@ -60,6 +61,16 @@ def flux_capacitor(
         yflux = yflux + fy
 
 
+@gtscript.function
+def dw_FV3GFS(fx2: FloatField, fy2: FloatField, rarea: FloatFieldIJ):
+    return (fx2 - fx2[1, 0, 0] + fy2 - fy2[0, 1, 0]) * rarea
+
+
+@gtscript.function
+def dw_GEOS(fx2: FloatField, fy2: FloatField, rarea: FloatFieldIJ):
+    return ((fx2 - fx2[1, 0, 0]) + (fy2 - fy2[0, 1, 0])) * rarea
+
+
 def heat_diss(
     fx2: FloatField,
     fy2: FloatField,
@@ -93,18 +104,23 @@ def heat_diss(
         damp_w (in):
         ke_bg (in):
     """
+    from __externals__ import GEOS
+
     with computation(PARALLEL), interval(...):
         heat_source = 0.0
         diss_est = 0.0
         if damp_w > 1e-5:
             dd8 = ke_bg * abs(dt)
-            dw = (fx2 - fx2[1, 0, 0] + fy2 - fy2[0, 1, 0]) * rarea
+            if __INLINED(GEOS):
+                dw = dw_GEOS(fx2, fy2, rarea)
+            else:
+                dw = dw_FV3GFS(fx2, fy2, rarea)
             heat_source = dd8 - dw * (w + 0.5 * dw)
             diss_est = heat_source
 
 
 @gtscript.function
-def flux_increment(gx, gy, rarea):
+def flux_increment_FV3GFS(gx, gy, rarea):
     """
     Args:
         gx: x-direction flux of some scalar q in units of q * area
@@ -117,6 +133,14 @@ def flux_increment(gx, gy, rarea):
         tendency increment in units of q defined on cell centers
     """
     return (gx - gx[1, 0, 0] + gy - gy[0, 1, 0]) * rarea
+
+
+@gtscript.function
+def flux_increment_GEOS(gx, gy, rarea):
+    """
+    See flux_increment_FV3GFS.
+    """
+    return ((gx - gx[1, 0, 0]) + (gy - gy[0, 1, 0])) * rarea
 
 
 def apply_fluxes(
@@ -135,6 +159,8 @@ def apply_fluxes(
         gy (in): y-flux of q in units of q * Pa * area
         rarea (in): 1 / area
     """
+    from __externals__ import GEOS
+
     # TODO: this function changes the units and therefore meaning of q,
     # is there any way we can avoid doing so?
     # the next time w and q_con (passed as q to this routine) are used
@@ -142,7 +168,10 @@ def apply_fluxes(
     # to the original units.
     with computation(PARALLEL), interval(...):
         # in the original Fortran, this uses `w` instead of `q`
-        q = q * delp + flux_increment(gx, gy, rarea)
+        if __INLINED(GEOS):
+            q = q * delp + flux_increment_GEOS(gx, gy, rarea)
+        else:
+            q = q * delp + flux_increment_FV3GFS(gx, gy, rarea)
 
 
 @gtscript.function
@@ -165,15 +194,19 @@ def apply_pt_delp_fluxes(
         gy (in):
         rarea (in):
     """
-    from __externals__ import inline_q, local_ie, local_is, local_je, local_js
+    from __externals__ import GEOS, inline_q, local_ie, local_is, local_je, local_js
 
     # original Fortran uses gx/gy for pt fluxes, fx/fy for delp fluxes
     # TODO: local region only needed for d_sw halo validation
     # use selective validation instead
     if __INLINED(inline_q == 0):
         with horizontal(region[local_is : local_ie + 1, local_js : local_je + 1]):
-            pt = pt * delp + flux_increment(pt_x_flux, pt_y_flux, rarea)
-            delp = delp + flux_increment(delp_x_flux, delp_y_flux, rarea)
+            if __INLINED(GEOS):
+                pt = pt * delp + flux_increment_GEOS(pt_x_flux, pt_y_flux, rarea)
+                delp = delp + flux_increment_GEOS(delp_x_flux, delp_y_flux, rarea)
+            else:
+                pt = pt * delp + flux_increment_FV3GFS(pt_x_flux, pt_y_flux, rarea)
+                delp = delp + flux_increment_FV3GFS(delp_x_flux, delp_y_flux, rarea)
             pt = pt / delp
     return pt, delp
 
@@ -409,7 +442,7 @@ def rel_vorticity_to_abs(
 
 
 @gtscript.function
-def u_from_ke(ke, u, dx, fy):
+def u_from_ke_GEOS(ke, u, dx, fy):
     """
     Described in section 5.2 eq 5.3d and 5.3e of FV3 docs.
 
@@ -433,12 +466,24 @@ def u_from_ke(ke, u, dx, fy):
         dx (in): grid cell width
         fy (in): flux of absolute vorticity in y-direction
     """
+    return u * dx + (ke - ke[1, 0, 0]) + fy
+
+
+@gtscript.function
+def u_from_ke_FV3GFS(ke, u, dx, fy):
+    # see docstring for u_from_ke_GEOS
     return u * dx + ke - ke[1, 0, 0] + fy
 
 
 @gtscript.function
-def v_from_ke(ke, v, dy, fx):
-    # see docstring for u_from_ke
+def v_from_ke_GEOS(ke, v, dy, fx):
+    # see docstring for u_from_ke_GEOS
+    return v * dy + (ke - ke[0, 1, 0]) - fx
+
+
+@gtscript.function
+def v_from_ke_FV3GFS(ke, v, dy, fx):
+    # see docstring for u_from_ke_GEOS
     return v * dy + ke - ke[0, 1, 0] - fx
 
 
@@ -468,7 +513,7 @@ def u_and_v_from_ke(
         dx (in):
         dy (in):
     """
-    from __externals__ import local_ie, local_is, local_je, local_js
+    from __externals__ import GEOS, local_ie, local_is, local_je, local_js
 
     # TODO: this function does not return u and v, it returns something
     # like u * dx and v * dy. Rename this function and its inouts.
@@ -478,9 +523,15 @@ def u_and_v_from_ke(
         # TODO: may be able to remove local regions once this stencil and
         # heat_from_damping are in the same stencil
         with horizontal(region[local_is : local_ie + 1, local_js : local_je + 2]):
-            u = u_from_ke(ke, u, dx, fy)
+            if __INLINED(GEOS):
+                u = u_from_ke_GEOS(ke, u, dx, fy)
+            else:
+                u = u_from_ke_FV3GFS(ke, u, dx, fy)
         with horizontal(region[local_is : local_ie + 2, local_js : local_je + 1]):
-            v = v_from_ke(ke, v, dy, fx)
+            if __INLINED(GEOS):
+                v = v_from_ke_GEOS(ke, v, dy, fx)
+            else:
+                v = v_from_ke_FV3GFS(ke, v, dy, fx)
 
 
 @gtscript.function
@@ -638,9 +689,17 @@ def vorticity_damping_option(column, k, do_vort_damp):
         column["damp_vt"].view[k] = 0.5 * column["d2_divg"].view[k]
 
 
+def vorticity_damping_option_GEOS(column, k, do_vort_damp):
+    if do_vort_damp:
+        column["nord_v"].view[k] = 0
+
+
 def lowest_kvals(column, k, do_vort_damp):
     set_low_kvals(column, k)
-    vorticity_damping_option(column, k, do_vort_damp)
+    if IS_GEOS:
+        vorticity_damping_option_GEOS(column, k, do_vort_damp)
+    else:
+        vorticity_damping_option(column, k, do_vort_damp)
 
 
 def get_column_namelist(
@@ -662,6 +721,9 @@ def get_column_namelist(
         "damp_t",
         "d2_divg",
     ]
+    if config.d2_bg_k2 < 0:
+        raise NotImplementedError("D_SW.column with d2_bg_k2 < 0 is not implemented")
+
     col: Dict[str, pace.util.Quantity] = {}
     for name in all_names:
         # TODO: fill units information
@@ -674,7 +736,7 @@ def get_column_namelist(
         col[name].view[:] = getattr(config, name)
 
     col["d2_divg"].view[:] = min(0.2, config.d2_bg)
-    col["nord_v"].view[:] = min(2, col["nord"].view[0])
+    col["nord_v"].view[:] = min(2, config.nord)
     col["nord_w"].view[:] = col["nord_v"].view[0]
     col["nord_t"].view[:] = col["nord_v"].view[0]
     if config.do_vort_damp:
@@ -697,6 +759,33 @@ def get_column_namelist(
         if config.d2_bg_k2 > 0.05:
             col["d2_divg"].view[2] = max(config.d2_bg, 0.2 * config.d2_bg_k2)
             set_low_kvals(col, 2)
+            if IS_GEOS:
+                # In GEOS the column values are set after K==3 up until the sponge
+                # layer top, defined in config
+                for n in range(3, config.n_sponge):
+                    col["d2_divg"].view[n] = max(config.d2_bg, 0.2 * config.d2_bg_k2)
+                    set_low_kvals(col, n)
+
+    # Checks for the column calculations
+    # Those checks are expected in the rest of the code. DO NOT REMOVE even if the
+    # above algorithm makes it clear they are enforced. This is an added safety.
+
+    # Check that the format of nord_col is N 0's then non-zero values
+    # all the way to the top.
+    # Check upper values are all the same.
+    non_zero_k = -1
+    non_zero_v = -1
+    for k, v in enumerate(col["nord_v"].view[:]):
+        if v != 0:
+            non_zero_k = k
+            non_zero_v = v
+            break
+    for v in range(non_zero_k, col["nord_v"].view.extent[0]):
+        if col["nord_v"].view[v] != non_zero_v:
+            raise RuntimeError(
+                f"D_SW.column is not homogeneous in values: {col['nord_v'].view[:]}"
+            )
+
     return col
 
 
@@ -834,12 +923,22 @@ class DGridShallowWaterLagrangianDynamics:
         self._tmp_fy2 = make_quantity()
         self._column_namelist = column_namelist
 
+        if (self._column_namelist["damp_w"].values < 1.0e-5).any():
+            raise NotImplementedError(
+                "DelnFluxNoSG: Damp_vt has above threshold values."
+                " Fortran would jump over computation, we don't."
+            )
         self.delnflux_nosg_w = DelnFluxNoSG(
             stencil_factory,
             damping_coefficients,
             grid_data.rarea,
             self._column_namelist["nord_w"],
         )
+        if (self._column_namelist["damp_vt"].values < 1.0e-5).any():
+            raise NotImplementedError(
+                "DelnFluxNoSG: Damp_vt has above threshold values."
+                " Fortran would jump over computation, we don't."
+            )
         self.delnflux_nosg_v = DelnFluxNoSG(
             stencil_factory,
             damping_coefficients,
@@ -907,9 +1006,7 @@ class DGridShallowWaterLagrangianDynamics:
         self._apply_pt_delp_fluxes = stencil_factory.from_dims_halo(
             func=apply_pt_delp_fluxes_stencil_defn,
             compute_dims=[X_INTERFACE_DIM, Y_INTERFACE_DIM, Z_DIM],
-            externals={
-                "inline_q": config.inline_q,
-            },
+            externals={"inline_q": config.inline_q, "GEOS": IS_GEOS},
         )
         self._compute_kinetic_energy = stencil_factory.from_dims_halo(
             func=compute_kinetic_energy,
@@ -924,7 +1021,9 @@ class DGridShallowWaterLagrangianDynamics:
             },
         )
         self._apply_fluxes = stencil_factory.from_dims_halo(
-            func=apply_fluxes, compute_dims=[X_DIM, Y_DIM, Z_DIM]
+            func=apply_fluxes,
+            compute_dims=[X_DIM, Y_DIM, Z_DIM],
+            externals={"GEOS": IS_GEOS},
         )
         self._flux_capacitor_stencil = stencil_factory.from_dims_halo(
             func=flux_capacitor,
@@ -936,7 +1035,9 @@ class DGridShallowWaterLagrangianDynamics:
             compute_dims=[X_INTERFACE_DIM, Y_INTERFACE_DIM, Z_DIM],
         )
         self._u_and_v_from_ke_stencil = stencil_factory.from_dims_halo(
-            func=u_and_v_from_ke, compute_dims=[X_INTERFACE_DIM, Y_INTERFACE_DIM, Z_DIM]
+            func=u_and_v_from_ke,
+            compute_dims=[X_INTERFACE_DIM, Y_INTERFACE_DIM, Z_DIM],
+            externals={"GEOS": IS_GEOS},
         )
 
         if config.do_f3d:
@@ -954,6 +1055,9 @@ class DGridShallowWaterLagrangianDynamics:
         self._heat_diss_stencil = stencil_factory.from_dims_halo(
             func=heat_diss,
             compute_dims=[X_DIM, Y_DIM, Z_DIM],
+            externals={
+                "GEOS": IS_GEOS,
+            },
         )
         self._heat_source_from_vorticity_damping_stencil = (
             stencil_factory.from_dims_halo(

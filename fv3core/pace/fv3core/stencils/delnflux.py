@@ -1,21 +1,15 @@
 from typing import Optional
 
 import gt4py.cartesian.gtscript as gtscript
-from gt4py.cartesian.gtscript import (
-    PARALLEL,
-    computation,
-    horizontal,
-    interval,
-    region,
-)
+from gt4py.cartesian.gtscript import PARALLEL, computation, horizontal, interval, region
 
 import pace.util
 from pace.dsl.dace.orchestration import orchestrate
 from pace.dsl.stencil import StencilFactory, get_stencils_with_varied_bounds
 from pace.dsl.typing import Float, FloatField, FloatFieldIJ, FloatFieldK
 from pace.util import X_DIM, X_INTERFACE_DIM, Y_DIM, Y_INTERFACE_DIM, Z_DIM
+from pace.util.constants import CONST_VERSION, ConstantVersions
 from pace.util.grid import DampingCoefficients
-from pace.util.constants import ConstantVersions, CONST_VERSION
 
 
 def calc_damp(
@@ -66,12 +60,7 @@ def fy_calc_stencil_nord(
         del6_u (in):
         fy (out):
     """
-    from __externals__ import (
-        local_ie,
-        local_is,
-        local_je,
-        local_js,
-    )
+    from __externals__ import local_ie, local_is, local_je, local_js
 
     with computation(PARALLEL), interval(...):
         if nord == 0:
@@ -168,12 +157,7 @@ def d2_damp_interval(
     d2 (out):
     damp (in):
     """
-    from __externals__ import (
-        local_ie,
-        local_is,
-        local_je,
-        local_js,
-    )
+    from __externals__ import local_ie, local_is, local_je, local_js
 
     with computation(PARALLEL), interval(...):
         if nord == 0:
@@ -191,12 +175,7 @@ def copy_stencil_interval(q_in: FloatField, q_out: FloatField, nord: FloatFieldK
         q_in (in):
         q_out (out):
     """
-    from __externals__ import (
-        local_ie,
-        local_is,
-        local_je,
-        local_js,
-    )
+    from __externals__ import local_ie, local_is, local_je, local_js
 
     with computation(PARALLEL), interval(...):
         if nord == 0:

@@ -20,7 +20,7 @@ def apply_x_flux_divergence(q: FloatField, q_x_flux: FloatField) -> FloatField:
     """
     Update a scalar q according to its flux in the x direction.
     """
-    return q + q_x_flux - q_x_flux[1, 0, 0]
+    return q + (q_x_flux - q_x_flux[1, 0, 0])
 
 
 @gtscript.function
@@ -28,7 +28,7 @@ def apply_y_flux_divergence(q: FloatField, q_y_flux: FloatField) -> FloatField:
     """
     Update a scalar q according to its flux in the x direction.
     """
-    return q + q_y_flux - q_y_flux[0, 1, 0]
+    return q + (q_y_flux - q_y_flux[0, 1, 0])
 
 
 def q_i_stencil(
@@ -51,9 +51,8 @@ def q_i_stencil(
         # note the units of area cancel out, because area is present in all
         # terms in the numerator and denominator of q_i
         # corresponds to FV3 documentation eq 4.18, q_i = f(q)
-        q_i = (q * area + fyy - fyy[0, 1, 0]) / (
-            area + y_area_flux - y_area_flux[0, 1, 0]
-        )
+        area_with_y_flux = apply_y_flux_divergence(area, y_area_flux)
+        q_i = (q * area + fyy - fyy[0, 1, 0]) / area_with_y_flux
 
 
 def q_j_stencil(
@@ -167,6 +166,11 @@ class FiniteVolumeTransport:
         if (self._nord is not None) and (self._damp_c is not None):
             # [DaCe] Use _do_delnflux instead of a None function
             # to have DaCe parsing working
+            if (damp_c.values < 1.0e-4).any():
+                raise NotImplementedError(
+                    "DelnFlux: damp_c is above threshold for some K."
+                    " Fortran would jump over the computation, we don't."
+                )
             self._do_delnflux = True
             self.delnflux: Optional[DelnFlux] = DelnFlux(
                 stencil_factory=stencil_factory,

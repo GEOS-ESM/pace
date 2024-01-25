@@ -6,6 +6,7 @@ import pace.util
 from pace import fv3core
 from pace.dsl.typing import FloatField, FloatFieldIJ
 from pace.fv3core.testing import TranslateDycoreFortranData2Py
+from pace.util.constants import IS_GEOS
 
 
 class TranslateD_SW(TranslateDycoreFortranData2Py):
@@ -227,6 +228,9 @@ class TranslateHeatDiss(TranslateDycoreFortranData2Py):
             d_sw.heat_diss,
             origin=self.grid.compute_origin(),
             domain=self.grid.domain_shape_compute(),
+            externals={
+                "GEOS": IS_GEOS,
+            },
         )
         heat_diss_stencil(**inputs)
         return inputs
@@ -252,6 +256,7 @@ class TranslateWdivergence(TranslateDycoreFortranData2Py):
             d_sw.apply_fluxes,
             origin=self.grid.compute_origin(),
             domain=self.grid.domain_shape_compute(),
+            externals={"GEOS": IS_GEOS},
         )
 
     def compute_from_storage(self, inputs):
