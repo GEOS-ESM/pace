@@ -21,6 +21,8 @@ try:
 except KeyError as e:
     raise RuntimeError(f"Constants {CONST_VERSION_AS_STR} is not implemented, abort.")
 
+IS_GEOS = CONST_VERSION == ConstantVersions.GEOS
+
 #####################
 # Common constants
 #####################
