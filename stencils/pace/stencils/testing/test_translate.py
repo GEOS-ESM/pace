@@ -38,6 +38,8 @@ def sample_wherefail(
     test_name,
     ignore_near_zero_errors,
     near_zero,
+    varname,
+    record_property,
     xy_indices=False,
 ):
     found_indices = np.where(
@@ -74,15 +76,32 @@ def sample_wherefail(
             reference_worst = reference_failures[b]
     # Summary and worst result
     fullcount = len(ref_data.flatten())
+    failed_pct = round(100.0 * (bad_indices_count / fullcount), 2)
     return_strings.append(
         f"Failed count: {bad_indices_count}/{fullcount} "
-        f"({round(100.0 * (bad_indices_count / fullcount), 2)}%),\n"
+        f"({failed_pct}%),\n"
         f"Worst failed index {worst_full_idx}\n"
         f"\tcomputed:{computed_worst}\n"
         f"\treference: {reference_worst}\n"
         f"\tabsolute diff: {worst_abs_err:.3e}\n"
         f"\tmetric diff: {worst_metric_err:.3e}\n"
     )
+    record = {
+        "variable": varname,
+        "gridpoints": {
+            "all": fullcount,
+            "failed": bad_indices_count,
+            "failed_pct": failed_pct,
+        },
+        "worst": {
+            "index": worst_full_idx,
+            "reference": reference_worst,
+            "computed": computed_worst,
+            "metric_diff": worst_metric_err,
+            "absolute_diff": worst_abs_err,
+        },
+    }
+    record_property(f"fail_detail_{varname}", record)
 
     if xy_indices:
         if len(computed_data.shape) == 3:
@@ -226,6 +245,7 @@ def test_sequential_savepoint(
     subtests,
     caplog,
     threshold_overrides,
+    record_property,
     xy_indices=True,
 ):
     if case.testobj is None:
@@ -283,6 +303,8 @@ def test_sequential_savepoint(
                 print_failures,
                 failure_stride,
                 case.savepoint_name,
+                varname=varname,
+                record_property=record_property,
                 ignore_near_zero_errors=ignore_near_zero,
                 near_zero=case.testobj.near_zero,
                 xy_indices=xy_indices,
@@ -304,6 +326,8 @@ def test_sequential_savepoint(
             failing_names,
             out_filename,
         )
+    record_property("Pass", passing_names)
+    record_property("Fail", failing_names)
     assert failing_names == [], f"only the following variables passed: {passing_names}"
     assert len(passing_names) > 0, "No tests passed"
 
@@ -351,6 +375,7 @@ def test_parallel_savepoint(
     caplog,
     threshold_overrides,
     compute_grid,
+    record_property,
     xy_indices=True,
 ):
     if MPI.COMM_WORLD.Get_size() % 6 != 0:
@@ -423,6 +448,8 @@ def test_parallel_savepoint(
                 ignore_near_zero,
                 case.testobj.near_zero,
                 xy_indices,
+                record_property=record_property,
+                varname=varname,
             )
             passing_names.append(failing_names.pop())
     if len(failing_names) > 0:
