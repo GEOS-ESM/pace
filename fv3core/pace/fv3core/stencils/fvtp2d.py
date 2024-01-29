@@ -134,7 +134,7 @@ class FiniteVolumeTransport:
         grid_type: int,
         hord,
         nord=None,
-        damp_c=None,
+        damp_c: Optional[pace.util.Quantity] = None,
     ):
         orchestrate(
             obj=self,
@@ -166,7 +166,7 @@ class FiniteVolumeTransport:
         if (self._nord is not None) and (self._damp_c is not None):
             # [DaCe] Use _do_delnflux instead of a None function
             # to have DaCe parsing working
-            if (damp_c.values < 1.0e-4).any():
+            if (damp_c.view[:] < 1.0e-4).any():
                 raise NotImplementedError(
                     "DelnFlux: damp_c is above threshold for some K."
                     " Fortran would jump over the computation, we don't."

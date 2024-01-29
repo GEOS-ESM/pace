@@ -923,7 +923,7 @@ class DGridShallowWaterLagrangianDynamics:
         self._tmp_fy2 = make_quantity()
         self._column_namelist = column_namelist
 
-        if (self._column_namelist["damp_w"].values < 1.0e-5).any():
+        if (self._column_namelist["damp_w"].view[:] < 1.0e-5).any():
             raise NotImplementedError(
                 "DelnFluxNoSG: Damp_vt has above threshold values."
                 " Fortran would jump over computation, we don't."
@@ -934,7 +934,7 @@ class DGridShallowWaterLagrangianDynamics:
             grid_data.rarea,
             self._column_namelist["nord_w"],
         )
-        if (self._column_namelist["damp_vt"].values < 1.0e-5).any():
+        if (self._column_namelist["damp_vt"].view[:] < 1.0e-5).any():
             raise NotImplementedError(
                 "DelnFluxNoSG: Damp_vt has above threshold values."
                 " Fortran would jump over computation, we don't."

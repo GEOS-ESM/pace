@@ -103,7 +103,10 @@ class GeosDycoreWrapper:
         self.namelist = namelist
         self.dycore_config = fv3core.DynamicalCoreConfig.from_f90nml(self.namelist)
         self.dycore_config.dt_atmos = bdt
-        assert self.dycore_config.dt_atmos != 0
+        if self.dycore_config.dt_atmos <= 0:
+            raise RuntimeError(
+                "GEOS Wrapper:" f" dt atmos of {self.dycore_config.dt_atmos} is wrong."
+            )
 
         self.layout = self.dycore_config.layout
         partitioner = pace.util.CubedSpherePartitioner(
@@ -206,11 +209,11 @@ class GeosDycoreWrapper:
             f"             dt : {self.dycore_state.bdt}\n"
             f"         bridge : {self._fortran_mem_space} > {self._pace_mem_space}\n"
             f"        backend : {backend}\n"
-            f"          float : {floating_point_precision()}bit"
+            f"          float : {floating_point_precision()}bit\n"
             f"  orchestration : {self._is_orchestrated}\n"
             f"          sizer : {sizer.nx}x{sizer.ny}x{sizer.nz}"
             f"(halo: {sizer.n_halo})\n"
-            f"     Device ord : {device_ordinal_info}\n"
+            f"     Device ord : {device_ordinal_info}"
             f"     Nvidia MPS : {MPS_is_on}"
         )
 
